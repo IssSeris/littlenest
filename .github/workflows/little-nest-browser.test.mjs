@@ -321,3 +321,13 @@ test("the required check fails closed for ineligible PRs and failed or skipped b
     0,
   );
 });
+
+test("API browser-support typechecking builds its TypeScript references first", () => {
+  const buildStep = step(browserJob, "Build API test-support TypeScript references");
+  assert.match(buildStep, /pnpm exec tsc -b lib\/db lib\/api-zod/);
+  assert.ok(
+    browserJob.indexOf("- name: Build API test-support TypeScript references")
+      < browserJob.indexOf("- name: Type-check browser fixtures and cleanup support"),
+    "Referenced declaration outputs must exist before the clean-checkout typecheck.",
+  );
+});

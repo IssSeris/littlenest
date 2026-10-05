@@ -196,6 +196,9 @@ jobs:
       - name: Install Chromium, Firefox and WebKit
         run: pnpm --filter @workspace/little-nest exec playwright install --with-deps chromium firefox webkit
 
+      - name: Build API test-support TypeScript references
+        run: pnpm exec tsc -b lib/db lib/api-zod
+
       - name: Type-check browser fixtures and cleanup support
         run: |
           pnpm --filter @workspace/little-nest run typecheck:browser
