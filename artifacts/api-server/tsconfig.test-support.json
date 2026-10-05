@@ -1,14 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "../..",
     "incremental": false,
     "noEmit": true,
     "paths": {
-      "@workspace/api-zod": ["../../lib/api-zod/dist/index.d.ts"],
-      "@workspace/db": ["../../lib/db/dist/index.d.ts"]
+      "@workspace/api-zod": ["../../lib/api-zod/src/index.ts"],
+      "@workspace/db": ["../../lib/db/src/index.ts"],
+      "@workspace/db/*": ["../../lib/db/src/*"]
     }
   },
-  "include": ["test-support/**/*.ts"],
-  "references": [{"path": "../../lib/db"}, {"path": "../../lib/api-zod"}]
+  "include": ["test-support/**/*.ts"]
 }
