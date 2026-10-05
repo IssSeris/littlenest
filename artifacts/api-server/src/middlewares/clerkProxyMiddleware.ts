@@ -46,7 +46,10 @@ export const CLERK_PROXY_PATH = '/api/__clerk';
 export function getClerkProxyHost(req: {
   headers: IncomingHttpHeaders;
 }): string | undefined {
-  const forwarded = req.headers['x-forwarded-host'];
+  const browserHost = process.env.PASTE_BROWSER_CI_ROUTER === '1'
+    ? req.headers['x-little-nest-browser-host']
+    : undefined;
+  const forwarded = browserHost ?? req.headers['x-forwarded-host'];
   const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
   const firstHop = raw?.split(',')[0]?.trim();
   return firstHop || req.headers.host?.trim() || undefined;

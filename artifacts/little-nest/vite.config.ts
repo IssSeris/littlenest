@@ -81,7 +81,14 @@ export default defineConfig({
       proxy: {
         '/api': {
           target: 'http://127.0.0.1:8080',
-          changeOrigin: false, // Keep the browser host for both Clerk and the same-site Origin check.
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyRequest, request) => {
+              if (request.headers.host) {
+                proxyRequest.setHeader('x-little-nest-browser-host', request.headers.host);
+              }
+            });
+          },
         },
       },
     } : {}),

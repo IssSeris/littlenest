@@ -11,7 +11,7 @@
     "typecheck:test-support": "tsc -p tsconfig.test-support.json --noEmit",
     "test:browser-cleanup": "tsx --test test-support/browser-fixture-ownership.test.ts",
     "test:browser-cleanup:recovery": "tsx test-support/prove-canceled-browser-recovery.ts",
-    "test": "tsx --test src/routes/*.test.ts test-support/browser-fixture-ownership.test.ts"
+    "test": "tsx --test src/routes/*.test.ts src/middlewares/*.test.ts test-support/browser-fixture-ownership.test.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
