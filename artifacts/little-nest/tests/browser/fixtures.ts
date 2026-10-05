@@ -54,7 +54,7 @@ export const test = base.extend<{ household: Household }>({
       run.accountId = user.id;
       saveRun(run);
       context = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
-      await context.addInitScript(installClerkSessionCookie);
+      await context.addInitScript(installClerkSessionAuthorization);
       const first = await context.newPage();
       parentCleanupPage = first;
       await first.goto('/');
@@ -116,7 +116,7 @@ export const test = base.extend<{ household: Household }>({
         linkedRun.accountId = linkedUser.id;
         saveRun(linkedRun);
         const linkedContext = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
-        await linkedContext.addInitScript(installClerkSessionCookie);
+        await linkedContext.addInitScript(installClerkSessionAuthorization);
         linkedContexts.push(linkedContext);
         const linkedPage = await linkedContext.newPage();
         await linkedPage.goto('/');
@@ -195,18 +195,20 @@ export const test = base.extend<{ household: Household }>({
   },
 });
 
-function installClerkSessionCookie() {
-  const state = window as typeof window & { __browserClerkCookieInstalled?: boolean };
-  if (state.__browserClerkCookieInstalled) return;
-  state.__browserClerkCookieInstalled = true;
+function installClerkSessionAuthorization() {
+  const state = window as typeof window & { __browserClerkAuthorizationInstalled?: boolean };
+  if (state.__browserClerkAuthorizationInstalled) return;
+  state.__browserClerkAuthorizationInstalled = true;
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
     if (url.origin === window.location.origin && url.pathname.startsWith('/api/')) {
       const token = await (window as any).Clerk?.session?.getToken();
       if (token) {
-        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `__session=${token}; Path=/; SameSite=Lax${secure}`;
+        const headers = new Headers(input instanceof Request ? input.headers : undefined);
+        new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
+        headers.set('Authorization', `Bearer ${token}`);
+        return originalFetch(input, { ...(init ?? {}), headers });
       }
     }
     return originalFetch(input, init);
