@@ -69,7 +69,9 @@ export const test = base.extend<{ household: Household }>({
       await first.waitForFunction((id) => (window as any).Clerk?.user?.id === id, user.id);
       const created = await first.evaluate(async (name) => {
         const existing = await fetch('/api/nest/snapshot');
-        if (existing.status !== 404) throw new Error('Disposable account unexpectedly has a household.');
+        if (existing.status !== 404) {
+          throw new Error(`Disposable account snapshot returned ${existing.status}, expected 404.`);
+        }
         const response = await fetch('/api/nest/households', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, parentName: 'Browser Parent', childName: 'Browser Child' }),
