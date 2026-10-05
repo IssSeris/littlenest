@@ -1,0 +1,10 @@
+.mood-history { margin: 17px 0; }
+.mood-history h2 { margin-bottom: 0; }
+.mood-history-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.mood-history-filters .field-wrap { flex: 1 1 160px; max-width: 250px; }
+.mood-history-list { list-style: none; padding: 0; margin: 0; }
+.mood-history-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid #efeee6; }
+.mood-history-list time { flex: 1 1 180px; font-size: 12px; }
+.mood-history-list a { font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.mood-history-empty { font-size: 13px; line-height: 1.6; }
+.journal-entry:focus { outline: 2px solid #b96f80; outline-offset: 4px; }

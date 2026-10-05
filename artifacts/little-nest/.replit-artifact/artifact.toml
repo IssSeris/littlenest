@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Little Nest"
+description = "A warm, low-pressure household organizer for home routines, allowance, calendars, flexible school and work tracking, goals, and private or shared journaling."
+version = "1.0.0"
+id = "artifacts/little-nest"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24429
+
+[services.development]
+run = "pnpm --filter @workspace/little-nest run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/little-nest", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/little-nest/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24429"
+BASE_PATH = "/"

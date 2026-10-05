@@ -1,0 +1,30 @@
+.paste-list { margin: 0 0 18px; }
+.paste-trigger { background: #e8f0e5; color: #4d6b56; }
+.paste-trigger:hover { background: #dde9d9; }
+.paste-panel { padding: 18px 20px; display: grid; gap: 14px; animation: rise .18s ease; }
+.paste-panel h2, .paste-panel h3 { font: 500 19px 'Fraunces', serif; margin: 0; color: #4a5f50; }
+.paste-hint { margin: 0; font-size: 12px; line-height: 1.55; color: #77827a; }
+.paste-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+.paste-rows { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.paste-row { border: 1px solid #e6e8dc; border-radius: 14px; background: #fbfaf3; padding: 12px; margin: 0; min-width: 0; }
+.paste-row legend { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #89958c; padding: 0 4px; }
+.paste-row.has-error { border-color: #e4b8b0; background: #fdf4f1; }
+.paste-row.is-uncertain { border-color: #e2cf9c; background: #faf3dc; }
+.paste-row-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.paste-row-top { display: flex; gap: 8px; align-items: flex-end; }
+.paste-row-top > div { flex: 1; min-width: 0; }
+.paste-err { margin: 8px 0 0; padding: 0; list-style: none; font-size: 11px; color: #b0584a; }
+.paste-status { font-size: 12px; line-height: 1.55; padding: 10px 12px; border-radius: 12px; background: #e8f0e5; color: #48644f; }
+.paste-status.is-error { background: #f8eae5; color: #a8574a; }
+.paste-status.is-warn { background: #f7edcf; color: #6f5e35; }
+.paste-check { border: 1px solid #e6e8dc; border-radius: 14px; padding: 12px 14px; background: #fffef9; display: grid; gap: 8px; }
+.paste-check ul { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow: auto; }
+.paste-check li { padding: 7px 0; border-top: 1px solid #efeee6; font-size: 12px; color: #46564c; }
+.paste-check li:first-child { border-top: 0; }
+.paste-check li span { display: block; font-size: 10px; color: #929b93; margin-top: 2px; }
+.paste-panel .button:disabled, .paste-panel .icon-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.paste-panel .button:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+@media (min-width: 681px) {
+  .paste-row-grid.chores { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .paste-row-grid.groceries { grid-template-columns: minmax(0, 1fr); }
+}

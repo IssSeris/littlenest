@@ -1,0 +1,459 @@
+name: Little Nest browser regressions
+
+on:
+  push:
+    branches:
+      - main
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  workflow_dispatch:
+    inputs:
+      recovery_run_id:
+        description: "Completed browser workflow run ID to recover"
+        required: true
+        type: string
+      recovery_run_attempt:
+        description: "Completed attempt number from that workflow run"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: little-nest-browser-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  authorize-pr:
+    if: github.event_name == 'pull_request_target'
+    name: Verify trusted pre-merge source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      eligible: ${{ steps.check.outputs.eligible }}
+      merge_sha: ${{ steps.check.outputs.merge_sha }}
+    steps:
+      - name: Reject untrusted pull requests before requesting secrets
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const trustedAuthors = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+            const repository = context.repo.owner + '/' + context.repo.repo;
+            const authorize = (candidate) => {
+              if (!candidate || candidate.base?.ref !== 'main'
+                || candidate.base?.repo?.full_name !== repository) {
+                return { result: 'reject', reason: 'Browser regressions require a pull request targeting this repository.' };
+              }
+              if (candidate.head?.repo?.full_name !== repository
+                || !trustedAuthors.has(candidate.author_association)) {
+                return { result: 'reject', reason: 'Browser regressions refuse forked or otherwise untrusted pull requests.' };
+              }
+              if (candidate.draft) return { result: 'draft' };
+              if (!/^[a-f0-9]{40}$/i.test(candidate.merge_commit_sha ?? '')) {
+                return { result: 'reject', reason: 'Could not identify the exact pull-request merge candidate.' };
+              }
+              return { result: 'eligible', merge_sha: candidate.merge_commit_sha };
+            };
+
+            // Exercise the same policy before any pull-request job can request
+            // the protected environment. Keep these checks credential-free.
+            const makeCandidate = (overrides = {}) => ({
+              base: { ref: 'main', repo: { full_name: repository } },
+              head: { repo: { full_name: repository } },
+              author_association: 'MEMBER',
+              draft: false,
+              merge_commit_sha: 'a'.repeat(40),
+              ...overrides,
+            });
+            const cases = [
+              { name: 'fork', candidate: makeCandidate({ head: { repo: { full_name: 'contributor/little-nest' } }, author_association: 'OWNER' }), expected: 'reject' },
+              { name: 'untrusted author', candidate: makeCandidate({ author_association: 'CONTRIBUTOR' }), expected: 'reject' },
+              { name: 'owner', candidate: makeCandidate({ author_association: 'OWNER' }), expected: 'eligible' },
+              { name: 'member', candidate: makeCandidate({ author_association: 'MEMBER' }), expected: 'eligible' },
+              { name: 'collaborator', candidate: makeCandidate({ author_association: 'COLLABORATOR' }), expected: 'eligible' },
+              { name: 'draft', candidate: makeCandidate({ draft: true }), expected: 'draft' },
+              { name: 'ready for review', candidate: makeCandidate({ draft: false }), expected: 'eligible' },
+            ];
+            for (const scenario of cases) {
+              if (authorize(scenario.candidate).result !== scenario.expected) {
+                core.setFailed(`Browser PR authorization self-test failed: ${scenario.name}.`);
+                return;
+              }
+            }
+
+            const decision = authorize(pr);
+            if (decision.result === 'reject') {
+              core.setFailed(decision.reason);
+              return;
+            }
+            if (decision.result === 'draft') {
+              core.info('Draft pull request: browser regressions will run when it is marked ready for review.');
+              core.setOutput('eligible', 'false');
+              return;
+            }
+            core.setOutput('eligible', 'true');
+            core.setOutput('merge_sha', decision.merge_sha);
+
+  browser:
+    needs: [authorize-pr]
+    if: >-
+      always() &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'pull_request_target' &&
+        needs.authorize-pr.result == 'success' &&
+        needs.authorize-pr.outputs.eligible == 'true'))
+    name: Run browser regressions
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: little_nest_browser
+          POSTGRES_USER: browser_ci
+          POSTGRES_PASSWORD: browser-ci-ephemeral
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U browser_ci -d little_nest_browser"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    timeout-minutes: 45
+    environment:
+      name: ${{ github.event_name == 'pull_request_target' && 'browser-regressions-pr' || 'browser-regressions' }}
+    env:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://browser_ci:browser-ci-ephemeral@127.0.0.1:5432/little_nest_browser
+      BROWSER_TEST_DATABASE_MODE: ephemeral-service
+      PASTE_BROWSER_BASE_URL: http://127.0.0.1:24429
+      PASTE_BROWSER_CI_ROUTER: "1"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          # pull_request_target keeps this workflow definition on main. Only
+          # check out PR code after the source gate and environment approval.
+          ref: ${{ github.event_name == 'pull_request_target' && needs.authorize-pr.outputs.merge_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Verify the browser pull request authorization boundary
+        run: node --test .github/workflows/little-nest-browser.test.mjs
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify and initialize the ephemeral browser database
+        shell: bash
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.BROWSER_TEST_CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if ! pnpm --filter @workspace/api-server exec tsx \
+            test-support/initialize-browser-ci-database.ts \
+            >/tmp/little-nest-ci-database-init.log 2>&1; then
+            echo "::error::Browser tests refused: test credentials or the isolated database did not pass safety checks."
+            exit 1
+          fi
+          if ! pnpm --filter @workspace/api-server exec tsx \
+            test-support/cleanup-browser-household.ts --verify-database \
+            >/dev/null 2>&1; then
+            echo "::error::The database did not match the isolated browser-test identity."
+            exit 1
+          fi
+          if ! pnpm --filter @workspace/db push \
+            >/tmp/little-nest-ci-database-schema.log 2>&1; then
+            echo "::error::The browser-test schema could not be applied to the fresh temporary database."
+            exit 1
+          fi
+
+      - name: Install Chromium, Firefox and WebKit
+        run: pnpm --filter @workspace/little-nest exec playwright install --with-deps chromium firefox webkit
+
+      - name: Type-check browser fixtures and cleanup support
+        run: |
+          pnpm --filter @workspace/little-nest run typecheck:browser
+          pnpm --filter @workspace/api-server run typecheck:test-support
+
+      - name: Prove canceled browser fixtures recover safely
+        shell: bash
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.BROWSER_TEST_CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          BROWSER_TEST_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          BROWSER_TEST_WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          if ! pnpm --filter @workspace/api-server run test:browser-cleanup:recovery \
+            >/tmp/little-nest-canceled-recovery.log 2>&1; then
+            echo "::error::Canceled-run recovery safety check failed; test output is withheld."
+            exit 1
+          fi
+          echo "Canceled-run recovery safety check passed."
+
+      - name: Build Little Nest and API server
+        env:
+          PORT: "24429"
+          BASE_PATH: /
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if ! pnpm --filter @workspace/api-server run build >/tmp/little-nest-api-build.log 2>&1; then
+            echo "::error::The API server build failed; build output is withheld to avoid exposing environment data."
+            exit 1
+          fi
+          if ! pnpm --filter @workspace/little-nest run build >/tmp/little-nest-web-build.log 2>&1; then
+            echo "::error::The Little Nest build failed; build output is withheld to avoid exposing environment data."
+            exit 1
+          fi
+
+      - name: Run the three-engine browser suite
+        shell: bash
+        timeout-minutes: 35
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.BROWSER_TEST_CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          BROWSER_TEST_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          BROWSER_TEST_WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          PORT=8080 node --enable-source-maps artifacts/api-server/dist/index.mjs \
+            >/tmp/little-nest-api.log 2>&1 &
+          api_pid=$!
+          PORT=24429 BASE_PATH=/ pnpm --filter @workspace/little-nest run serve \
+            >/tmp/little-nest-web.log 2>&1 &
+          web_pid=$!
+          stop_servers() {
+            kill "$api_pid" "$web_pid" 2>/dev/null || true
+            wait "$api_pid" "$web_pid" 2>/dev/null || true
+          }
+          trap stop_servers EXIT
+
+          wait_for_url() {
+            local url="$1"
+            local process_id="$2"
+            for _ in $(seq 1 45); do
+              if curl --fail --silent --output /dev/null "$url"; then
+                return 0
+              fi
+              if ! kill -0 "$process_id" 2>/dev/null; then
+                return 1
+              fi
+              sleep 1
+            done
+            return 1
+          }
+
+          if ! wait_for_url http://127.0.0.1:8080/api/healthz "$api_pid"; then
+            echo "::error::The local API server did not become healthy."
+            exit 1
+          fi
+          if ! wait_for_url http://127.0.0.1:24429/ "$web_pid"; then
+            echo "::error::The local Little Nest app did not become healthy."
+            exit 1
+          fi
+          if ! curl --fail --silent --output /dev/null http://127.0.0.1:24429/api/healthz; then
+            echo "::error::The local browser router did not reach the API server."
+            exit 1
+          fi
+
+          pnpm --filter @workspace/little-nest run test:browser
+
+      - name: Clean up any remaining fixtures owned by this run
+        if: always()
+        shell: bash
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.BROWSER_TEST_CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ledgers=(.browser-auth/runs/*.json)
+          if ((${#ledgers[@]} == 0)); then
+            exit 0
+          fi
+
+          failed=0
+          for ledger in "${ledgers[@]}"; do
+            run_id="${ledger##*/}"
+            run_id="${run_id%.json}"
+            if ! pnpm --filter @workspace/api-server exec tsx \
+              test-support/cleanup-browser-household.ts --finish "$run_id" \
+              >/dev/null 2>&1; then
+              failed=1
+            fi
+          done
+          if ((failed)); then
+            echo "::error::One or more disposable browser fixtures could not be safely cleaned up."
+            exit 1
+          fi
+
+  required-browser-check:
+    name: Chromium, Firefox and WebKit
+    needs: [authorize-pr, browser]
+    if: >-
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'pull_request_target')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require authorization and a successful browser run
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AUTHORIZATION_RESULT: ${{ needs.authorize-pr.result }}
+          PR_ELIGIBLE: ${{ needs.authorize-pr.outputs.eligible }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request_target" ]]; then
+            if [[ "$AUTHORIZATION_RESULT" != "success" || "$PR_ELIGIBLE" != "true" ]]; then
+              echo "::error::This pull request is not eligible for the protected browser regression run."
+              exit 1
+            fi
+          fi
+
+          if [[ "$BROWSER_RESULT" != "success" ]]; then
+            echo "::error::The browser regression suite did not complete successfully (result: $BROWSER_RESULT)."
+            exit 1
+          fi
+
+  recover:
+    if: github.event_name == 'workflow_dispatch'
+    name: Recover exact fixtures from a completed browser run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: browser-regressions
+    env:
+      NODE_ENV: development
+      PASTE_BROWSER_BASE_URL: http://127.0.0.1:24429
+
+    steps:
+      - name: Validate the selected completed source run
+        id: source
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = String(context.payload.inputs?.recovery_run_id ?? '');
+            const runNumber = Number(runId);
+            const attempt = Number(context.payload.inputs?.recovery_run_attempt);
+            if (!/^[1-9]\d{0,19}$/.test(runId)
+              || !Number.isSafeInteger(runNumber)
+              || !Number.isSafeInteger(attempt) || attempt < 1) {
+              core.setFailed('Enter a numeric source run ID and attempt number.');
+              return;
+            }
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            if (context.ref !== 'refs/heads/main') {
+              core.setFailed('Run fixture recovery from main.');
+              return;
+            }
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner, repo, run_id: runNumber,
+            });
+            const { data: workflow } = await github.rest.actions.getWorkflow({
+              owner, repo, workflow_id: run.workflow_id,
+            });
+            if (run.repository?.full_name !== `${owner}/${repo}`
+              || run.event !== 'push' || run.head_branch !== 'main'
+              || workflow.path !== '.github/workflows/little-nest-browser.yml'
+              || run.status !== 'completed' || attempt > run.run_attempt) {
+              core.setFailed('Recovery is limited to completed browser runs from main in this repository.');
+              return;
+            }
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner, repo, run_id: runNumber, filter: 'all', per_page: 100,
+            });
+            const attemptJobs = jobs.jobs.filter((job) => job.run_attempt === attempt);
+            if (attemptJobs.length === 0 || attemptJobs.some((job) => job.status !== 'completed')) {
+              core.setFailed('The selected workflow attempt is not fully complete.');
+              return;
+            }
+            core.setOutput('head_sha', run.head_sha);
+
+      - name: Check out the source run revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.head_sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Recreate the source run's exact Playwright test scopes
+        shell: bash
+        env:
+          BROWSER_TEST_RECOVERY_SCOPES_FILE: /tmp/little-nest-recovery-scopes.json
+        run: |
+          set -euo pipefail
+          if ! pnpm --filter @workspace/little-nest exec playwright test \
+            --config playwright.config.ts --list \
+            --reporter=./tests/browser/recovery-scope-reporter.ts \
+            >/tmp/little-nest-recovery-scope-list.log 2>&1; then
+            echo "::error::Could not safely list the source run's browser test scopes."
+            exit 1
+          fi
+          test -s "$BROWSER_TEST_RECOVERY_SCOPES_FILE"
+
+      - name: Validate and remove only the selected run's fixtures
+        shell: bash
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.BROWSER_TEST_CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.BROWSER_TEST_CLERK_PUBLISHABLE_KEY }}
+          BROWSER_TEST_RECOVERY_MODE: clerk-only-after-ephemeral-database
+          BROWSER_TEST_RECOVERY_SOURCE_VALIDATED: "true"
+          BROWSER_TEST_WORKFLOW_RUN_ID: ${{ inputs.recovery_run_id }}
+          BROWSER_TEST_WORKFLOW_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
+        run: |
+          set -euo pipefail
+          if ! pnpm --filter @workspace/api-server exec tsx \
+            test-support/recover-browser-clerk-fixtures.ts \
+            --recover-workflow "$BROWSER_TEST_WORKFLOW_RUN_ID" \
+            "$BROWSER_TEST_WORKFLOW_RUN_ATTEMPT" /tmp/little-nest-recovery-scopes.json \
+            >/tmp/little-nest-recovery-cleanup.log 2>&1; then
+            echo "::error::Recovery refused at least one fixture or could not verify its ownership."
+            exit 1
+          fi
+          cat /tmp/little-nest-recovery-cleanup.log

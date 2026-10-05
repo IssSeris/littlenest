@@ -1,0 +1,24 @@
+modules = ["nodejs-24", "python-base-3.13", "postgresql-16"]
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[nix]
+channel = "stable-25_05"
+packages = ["glib", "nss", "nspr", "dbus", "cups", "atk", "at-spi2-atk", "at-spi2-core", "libdrm", "libxkbcommon", "mesa", "alsa-lib", "gtk3", "pango", "cairo", "gdk-pixbuf", "xorg.libX11", "xorg.libxcb", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libXtst", "xorg.libXScrnSaver", "libgbm", "libjpeg", "libpng", "libwebp", "libffi", "libepoxy", "libevent", "enchant", "harfbuzz", "hyphen", "icu", "libnotify", "libsecret", "libsoup_3", "libxml2", "libxslt", "sqlite", "woff2", "gst_all_1.gstreamer", "gst_all_1.gst-plugins-base", "gst_all_1.gst-plugins-good", "gst_all_1.gst-plugins-bad", "gtk4", "vulkan-loader", "graphene", "gcc", "lcms2", "libopus", "flite", "libavif", "harfbuzzFull", "libmanette", "libglvnd", "x264", "icu74", "libjpeg8", "libbacktrace", "libjxl", "gst_all_1.gst-libav", "glib-networking", "gnutls"]

@@ -1,0 +1,16 @@
+.jr { margin-top:14px;padding-top:12px;border-top:1px dashed #eadde0; }
+.jr-paused { font-size:11px;line-height:1.6;color:#8b7f88;background:#f9f2f4;border-radius:12px;padding:10px 12px;margin:0; }
+.jr-title { font:500 15px 'Fraunces',serif;color:#51404a;margin:0 0 8px; }
+.jr-list { list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px; }
+.jr-item { background:#fbf4f3;border:1px solid #f0e1e3;border-radius:14px;padding:10px 12px;min-width:0; }
+.jr-meta { display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:10px;color:#939096; }
+.jr-meta strong { color:#66545f;font-size:11px; }
+.jr-body { margin:6px 0 0;font-size:13px;line-height:1.6;color:#59695f;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word; }
+.jr-actions,.jr-form-actions { display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center; }
+.jr-actions .button,.jr-form-actions .button { min-height:36px; }
+.jr-confirm { font-size:11px;color:#bd6959;flex-basis:100%; }
+.jr-error { font-size:11px;color:#bd6959;margin:6px 0 0; }
+.jr-count { font-size:10px;color:#939096;margin-left:auto; }
+.jr-empty { font-size:11px;color:#939096;margin:0 0 10px; }
+.jr .textarea { min-height:70px;overflow-wrap:anywhere; }
+@media(max-width:680px){ .jr-actions .button,.jr-form-actions .button { flex:1 1 auto;min-height:44px; } }

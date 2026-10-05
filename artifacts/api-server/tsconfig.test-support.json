@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": ["test-support/**/*.ts"],
+  "references": [{"path": "../../lib/db"}, {"path": "../../lib/api-zod"}]
+}

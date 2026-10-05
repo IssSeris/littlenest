@@ -1,0 +1,15 @@
+- [Original avatar sprites](original-avatar-sprites.md) — verify generated sheet layout before cropping; image models may ignore requested aspect ratios or leave incomplete rows.
+- [Catalog installs](catalog-install-behavior.md) — catalog shorthand can rewrite shared ranges and remove policy comments; preserve deliberate pins and security guidance.
+- [OpenAPI export collisions](openapi-export-collisions.md) — validator/type exports can collide; use named body schemas and check generated library types.
+- [Calendar date contracts](calendar-date-contracts.md) — generated date coercion can turn date-only responses into timestamps; preserve YYYY-MM-DD through round trips.
+- [Repeated list items](repeated-list-items.md) — repeated grocery/chore titles are intentional; never infer a confirmed save or remove a draft from title equality.
+- [Browser draft coordination](browser-draft-coordination.md) — do not replace atomic save coordination with expiring local-storage leases.
+- [Browser test authentication](browser-test-authentication.md) — response delays must preserve the original authenticated browser request path.
+- [Browser test environment](browser-test-environment.md) — Nix-installed libraries still need loader paths; use actual ABI-compatible outputs, not soname aliases.
+- [Interrupted browser fixture recovery](interrupted-browser-fixture-recovery.md) — GitHub CI uses ephemeral Postgres; recover only exact HMAC-marked Clerk test identities after its database is discarded.
+- [Private synced drafts](private-synced-drafts.md) — syncing is opt-in; legacy browser data stays local, and cross-device saves require atomic record/draft commits.
+- [Development cleanup safety](development-cleanup-safety.md) — ambient environment labels can misidentify the workspace; destructive cleanup needs independently verified database identity.
+- [Test fixture foreign keys](test-fixture-foreign-key-cleanup.md) — delete dependent household rows before profiles so teardown failures do not masquerade as a hung test runner.
+- [Rebase test integrity](rebase-test-integrity.md) — conflict-free rebases can still relocate repetitive test code into the wrong scope; compare both versions and run the suites.
+- [Required browser merge gates](required-browser-merge-gates.md) — skipped jobs can satisfy required checks; use a final always-running gate that fails for ineligible PRs.
+- [GitHub workflow write permissions](github-workflow-write-permissions.md) — repo push access does not guarantee writes under `.github/workflows`; grant the separate Workflows permission.

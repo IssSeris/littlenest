@@ -1,0 +1,9 @@
+.journal-search { margin: 17px 0; }
+.journal-search h2 { margin-bottom: 0; }
+.journal-search-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 16px 0; }
+.journal-search-controls .field-wrap { flex: 1 1 220px; }
+.journal-search-results { list-style: none; padding: 0; margin: 0; }
+.journal-search-results li { padding: 12px 0; border-top: 1px solid #efeee6; }
+.journal-search-results time, .journal-search > p { font-size: 13px; }
+.journal-search-preview { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.journal-search-results a { font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
