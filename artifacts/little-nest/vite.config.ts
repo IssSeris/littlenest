@@ -81,8 +81,7 @@ export default defineConfig({
       proxy: {
         '/api': {
           target: 'http://127.0.0.1:8080',
-          changeOrigin: true,
-          xfwd: true, // Preserve the browser host for the API's same-site Origin check.
+          changeOrigin: false, // Keep the browser host for both Clerk and the same-site Origin check.
         },
       },
     } : {}),
