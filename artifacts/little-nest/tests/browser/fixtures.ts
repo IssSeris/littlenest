@@ -54,6 +54,7 @@ export const test = base.extend<{ household: Household }>({
       run.accountId = user.id;
       saveRun(run);
       context = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
+      await context.addInitScript(installClerkSessionCookie);
       const first = await context.newPage();
       parentCleanupPage = first;
       await first.goto('/');
@@ -115,6 +116,7 @@ export const test = base.extend<{ household: Household }>({
         linkedRun.accountId = linkedUser.id;
         saveRun(linkedRun);
         const linkedContext = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
+        await linkedContext.addInitScript(installClerkSessionCookie);
         linkedContexts.push(linkedContext);
         const linkedPage = await linkedContext.newPage();
         await linkedPage.goto('/');
@@ -192,6 +194,24 @@ export const test = base.extend<{ household: Household }>({
     }
   },
 });
+
+function installClerkSessionCookie() {
+  const state = window as typeof window & { __browserClerkCookieInstalled?: boolean };
+  if (state.__browserClerkCookieInstalled) return;
+  state.__browserClerkCookieInstalled = true;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
+    if (url.origin === window.location.origin && url.pathname.startsWith('/api/')) {
+      const token = await (window as any).Clerk?.session?.getToken();
+      if (token) {
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `__session=${token}; Path=/; SameSite=Lax${secure}`;
+      }
+    }
+    return originalFetch(input, init);
+  };
+}
 
 export { expect };
 
