@@ -70,7 +70,16 @@ export const test = base.extend<{ household: Household }>({
       const created = await first.evaluate(async (name) => {
         const existing = await fetch('/api/nest/snapshot');
         if (existing.status !== 404) {
-          throw new Error(`Disposable account snapshot returned ${existing.status}, expected 404.`);
+          const clerk = (window as any).Clerk;
+          const token = await clerk.session?.getToken();
+          const bearerStatus = token
+            ? (await fetch('/api/nest/snapshot', { headers: { Authorization: `Bearer ${token}` } })).status
+            : 'unavailable';
+          throw new Error(
+            `Disposable account snapshot returned ${existing.status}, expected 404; `
+            + `CI auth diagnostics=${existing.headers.get('x-little-nest-ci-auth') ?? 'missing'}; `
+            + `sessionToken=${Boolean(token)}; bearerStatus=${bearerStatus}.`,
+          );
         }
         const response = await fetch('/api/nest/households', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },

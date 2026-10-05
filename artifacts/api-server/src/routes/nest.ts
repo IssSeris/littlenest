@@ -30,7 +30,21 @@ const isUniqueViolation = (error: unknown) => {
 export function createNestRouter(identity: (req: Request) => string | null = (req) => getAuth(req).userId, storage: JournalStorage = journalStorage): Router {
   const router = Router();
   router.use("/nest", (req, res, next) => {
-    if (!identity(req)) { res.status(401).json({ error: "Please sign in." }); return; }
+    if (!identity(req)) {
+      if (process.env.PASTE_BROWSER_CI_ROUTER === "1") {
+        const cookies = req.headers.cookie ?? "";
+        res.setHeader("x-little-nest-ci-auth", JSON.stringify({
+          host: req.headers.host ?? null,
+          browserHost: getClerkProxyHost(req) ?? null,
+          origin: req.get("origin") ?? null,
+          hasCookie: Boolean(cookies),
+          hasSessionCookie: /(?:^|;\s*)__session=/.test(cookies),
+          hasAuthorization: Boolean(req.headers.authorization),
+        }));
+      }
+      res.status(401).json({ error: "Please sign in." });
+      return;
+    }
     res.setHeader("Cache-Control", "no-store");
     const origin = req.get("origin");
     if (origin) {
